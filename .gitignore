@@ -14,3 +14,7 @@ outputs/
 */.DS_Store
 **/*.out
 Dockerfile
+*.txt
+*.npy
+*.pth
+datasets/

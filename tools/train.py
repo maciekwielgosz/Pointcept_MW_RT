@@ -5,6 +5,10 @@ Author: Xiaoyang Wu (xiaoyang.wu.cs@gmail.com)
 Please cite our work if the code is helpful to you.
 """
 
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+
 from pointcept.engines.defaults import (
     default_argument_parser,
     default_config_parser,

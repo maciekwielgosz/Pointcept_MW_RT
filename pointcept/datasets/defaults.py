@@ -150,9 +150,14 @@ class DefaultDataset(Dataset):
         return data_dict
 
     def prepare_test_data(self, idx):
+        # Assertion to catch wrong idx type early
+        assert isinstance(idx, int), f"Expected idx to be int, got {type(idx)} with value {idx}"
         # load data
         data_dict = self.get_data(idx)
+        # Assertion to catch wrong data_dict type early
+        assert isinstance(data_dict, dict), f"Expected data_dict to be dict, got {type(data_dict)} with value {data_dict}"
         data_dict = self.transform(data_dict)
+        assert isinstance(data_dict, dict), f"Expected data_dict after transform to be dict, got {type(data_dict)} with value {data_dict}"
         result_dict = dict(segment=data_dict.pop("segment"), name=data_dict.pop("name"))
         if "origin_segment" in data_dict:
             assert "inverse" in data_dict

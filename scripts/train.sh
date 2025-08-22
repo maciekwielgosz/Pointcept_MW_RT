@@ -2,7 +2,7 @@
 
 cd $(dirname $(dirname "$0")) || exit
 ROOT_DIR=$(pwd)
-PYTHON=python
+PYTHON=python3.8
 
 TRAIN_CODE=train.py
 
