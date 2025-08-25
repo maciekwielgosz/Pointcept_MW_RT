@@ -175,12 +175,22 @@ class DefaultDataset(Dataset):
             else:
                 data["index"] = np.arange(data["coord"].shape[0])
                 data_part_list = [data]
+
             for data_part in data_part_list:
                 if self.test_crop is not None:
-                    data_part = self.test_crop(data_part)
+                    cropped = self.test_crop(data_part)
+                    # ensure list semantics regardless of transform output
+                    if isinstance(cropped, dict):
+                        data_parts = [cropped]
+                    elif isinstance(cropped, list):
+                        data_parts = cropped
+                    else:
+                        raise TypeError(f"test_crop must return dict or list, got {type(cropped)}")
                 else:
-                    data_part = [data_part]
-                fragment_list += data_part
+                    data_parts = [data_part]
+
+                # use extend, not +=, but both are fine for lists
+                fragment_list.extend(data_parts)
 
         for i in range(len(fragment_list)):
             fragment_list[i] = self.post_transform(fragment_list[i])

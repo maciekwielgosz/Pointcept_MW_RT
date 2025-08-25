@@ -6,6 +6,7 @@ _base_ = ["../_base_/default_runtime.py"]
 # ---------------------------------------------------------------------------- #
 # Miscellaneous custom settings
 # ---------------------------------------------------------------------------- #
+
 # Total batch size across all GPUs
 batch_size = 4 # 16 works ok
 # Number of data loader workers per GPU
@@ -66,8 +67,8 @@ model = dict(
 # ---------------------------------------------------------------------------- #
 # Optimizer and scheduler settings
 # ---------------------------------------------------------------------------- #
-epoch = 2
-eval_epoch = 2
+epoch = 1
+eval_epoch = 1
 
 optimizer = dict(type="AdamW", lr=0.006, weight_decay=0.05)
 scheduler = dict(
@@ -190,19 +191,8 @@ data = dict(
                 return_grid_coord=True,
                 keys=("coord", "segment"),
             ),
-
-            # Centered spherical cropping to limit maximum number of points to 32768
-            # dict(type="SphereCrop", point_max=102400, mode="center"),
-
-            # Shift coordinates back to move Z centroid to 0
-            # dict(type="CenterShift", apply_z=False),
-
-     
-
             # Convert to PyTorch tensors
             dict(type="ToTensor"),
-
-
             # Collect keys into final dictionary for model input
             dict(
                 type="Collect",
@@ -214,35 +204,13 @@ data = dict(
     ),
     test=dict(
         type=dataset_type,
-        split="val",          # Evaluate on validation split
+        split="test",          # Evaluate on validation split
         data_root=data_root,
         transform=[
             # Shift coordinates so that centroid is at origin (with Z included)
             dict(type="CenterShift", apply_z=True),
             dict(type="LabelShift", offset=-1), # Shift labels to start from 0
-            dict(
-                type="CylinderCropSubsampling",
-                radius=20.0,  # Set your desired radius
-                num_points=10_000,  # Limit to maximum 250000 points
-                mode='center'  # Centered spherical cropping
-
-            ),
-            # Voxel downsampling (grid size = 2cm) for test; compute grid_coord & segment
-            dict(
-                type="GridSample",
-                grid_size=0.02,
-                hash_type="fnv",
-                mode="test",
-                return_grid_coord=True,
-                return_inverse=True,
-                keys=("coord", "segment"),
-            ),
-            
-            # Centered spherical cropping to limit maximum number of points to 32768
-            # dict(type="SphereCrop", point_max=102400, mode="center"),
-            # Shift coordinates back to move Z centroid to 0
-            # dict(type="CenterShift", apply_z=False),
-            # Do NOT include ToTensor or Collect here!
+            dict(type="SphereCrop", point_max=30000, mode="center"),  # pre-voxel crop
         ],
         test_mode=True,
         test_cfg=dict(
@@ -255,24 +223,15 @@ data = dict(
                 return_inverse=True,
                 keys=("coord", "segment"),
             ),
+            crop=None,
             post_transform=[
-                dict(
-                    type="GridSample",
-                    grid_size=0.02,
-                    hash_type="fnv",
-                    mode="test",
-                    return_grid_coord=True,
-                    return_inverse=True,
-                    keys=("coord", "segment"),
-                ),
                 dict(type="ToTensor"),
                 dict(
                     type="Collect",
-                    keys=("coord", "grid_coord", "segment"),
+                    keys=("coord", "grid_coord", "index", "inverse"),
                     feat_keys=["coord"],
                 ),
             ],
-            crop=None,  # No cropping beyond grid sampling + SphereCrop
             aug_transform=[
                 [
                     dict(
