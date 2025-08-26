@@ -120,7 +120,8 @@ def default_config_parser(file_path, options):
     if cfg.seed is None:
         cfg.seed = get_random_seed()
 
-    cfg.data.train.loop = cfg.epoch // cfg.eval_epoch
+    # cfg.data.train.loop = cfg.epoch // cfg.eval_epoch
+    # cfg.data.train.loop = 1
 
     os.makedirs(os.path.join(cfg.save_path, "model"), exist_ok=True)
     if not cfg.resume:

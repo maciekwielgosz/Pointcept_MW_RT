@@ -173,7 +173,7 @@ class CheckpointSaver(HookBase):
     def after_epoch(self):
         if is_main_process():
             is_best = False
-            if self.trainer.cfg.evaluate:
+            if self.trainer.cfg.evaluate and "current_metric_value" in self.trainer.comm_info:
                 current_metric_value = self.trainer.comm_info["current_metric_value"]
                 current_metric_name = self.trainer.comm_info["current_metric_name"]
                 if current_metric_value > self.trainer.best_metric_value:

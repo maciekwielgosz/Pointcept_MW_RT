@@ -124,7 +124,7 @@ class SemSegEvaluator(HookBase):
             wandb.define_metric("val/*", step_metric="Epoch")
 
     def after_epoch(self):
-        if self.trainer.cfg.evaluate:
+        if self.trainer.cfg.evaluate and ((self.trainer.epoch + 1) % self.trainer.cfg.eval_epoch == 0):
             self.eval()
 
     def eval(self):

@@ -8,7 +8,7 @@ _base_ = ["../_base_/default_runtime.py"]
 # ---------------------------------------------------------------------------- #
 
 # Total batch size across all GPUs
-batch_size = 4 # 16 works ok
+batch_size = 8 # 16 works ok
 # Number of data loader workers per GPU
 num_worker = 24  
 # Probability for mix augmentations (if used)
@@ -67,8 +67,10 @@ model = dict(
 # ---------------------------------------------------------------------------- #
 # Optimizer and scheduler settings
 # ---------------------------------------------------------------------------- #
-epoch = 1
-eval_epoch = 1
+evaluate = True
+epoch = 20
+eval_epoch = 4
+
 
 optimizer = dict(type="AdamW", lr=0.006, weight_decay=0.05)
 scheduler = dict(
@@ -162,7 +164,8 @@ data = dict(
                 feat_keys=["coord"],
             ),
         ],
-        test_mode=False,
+        test_mode=False,        
+        loop=2,  # sampling weight
     ),
     val=dict(
         type=dataset_type,
