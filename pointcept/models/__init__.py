@@ -21,6 +21,10 @@ from .context_aware_classifier import *
 from .point_group import *
 from .sgiformer import *
 
+# Panoptic Segmentation
+from .decoders import *
+
+
 # Pretraining
 from .masked_scene_contrast import *
 from .point_prompt_training import *

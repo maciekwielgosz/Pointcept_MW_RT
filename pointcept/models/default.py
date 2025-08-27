@@ -226,3 +226,121 @@ class DefaultClassifier(nn.Module):
             return dict(loss=loss, cls_logits=cls_logits)
         else:
             return dict(cls_logits=cls_logits)
+
+
+
+@MODELS.register_module()
+class PTV3WithDecoder(nn.Module):
+    """
+    PTv3 backbone + simple linear semantic head + external decoder producing per-class query masks.
+
+    TRAIN (self.training=True): return ONLY scalars at top-level:
+        {"loss": <scalar>, "seg_loss": <scalar>, "decoder_loss": <scalar>}
+    EVAL (has GT, not training): {"loss": <scalar>, "seg_logits": (N,K)}
+    TEST (no GT): {"seg_logits": (N,K)}
+    """
+
+    def __init__(
+        self,
+        backbone,
+        decoder,
+        num_classes,
+        backbone_out_channels: int = 64,
+        criteria=None,                 # CE + Lovasz (list-of-losses is fine via build_criteria)
+        decoder_criteria=None,         # e.g., SemanticMaskBCELoss
+        decoder_loss_weight: float = 1.0,
+        freeze_backbone: bool = False,
+    ):
+        super().__init__()
+        self.backbone = build_model(backbone)
+        self.decoder  = build_model(decoder)
+        self.seg_head = nn.Linear(backbone_out_channels, num_classes)
+
+        self.criteria = build_criteria(criteria) if criteria is not None else None
+        self.decoder_criteria = (
+            build_criteria(decoder_criteria) if decoder_criteria is not None else None
+        )
+        self.decoder_loss_weight = float(decoder_loss_weight)
+
+        self.freeze_backbone = bool(freeze_backbone)
+        if self.freeze_backbone:
+            for p in self.backbone.parameters():
+                p.requires_grad = False
+
+    @staticmethod
+    def _offset_cum2sizes(offset_cum: torch.Tensor):
+        sizes, prev = [], 0
+        for v in offset_cum.detach().cpu().tolist():
+            sizes.append(int(v - prev)); prev = int(v)
+        return sizes
+
+    def _stitch_feats(self, point: Point):
+        if isinstance(point, Point):
+            while "pooling_parent" in point.keys():
+                assert "pooling_inverse" in point.keys()
+                parent  = point.pop("pooling_parent")
+                inverse = point.pop("pooling_inverse")
+                parent.feat = torch.cat([parent.feat, point.feat[inverse]], dim=-1)
+                point = parent
+            return point.feat, point
+        else:
+            return point, None
+
+    def _make_feats_list(self, feat: torch.Tensor, input_dict, point_obj: Point):
+        offset_cum = point_obj.offset if (point_obj is not None and hasattr(point_obj, "offset")) else input_dict["offset"]
+        sizes = self._offset_cum2sizes(offset_cum)
+        return list(torch.split(feat, sizes, dim=0)), offset_cum
+
+    def forward(self, input_dict):
+        # Backbone
+        point = Point(input_dict)
+        if self.freeze_backbone:
+            with torch.no_grad():
+                point = self.backbone(point)
+        else:
+            point = self.backbone(point)
+
+        # Original-res features + logits
+        feat, point_obj = self._stitch_feats(point)   # (N, C)
+        seg_logits = self.seg_head(feat)              # (N, K)
+
+        # Decoder (operates per-sample list)
+        feats_list, offset_cum = self._make_feats_list(feat, input_dict, point_obj)
+        dec_out = self.decoder(feats_list)            # dict with "masks": List[(K, ni)]
+        query_masks = dec_out.get("masks", None)
+
+        has_gt = ("segment" in input_dict)
+
+        # ---------------- TRAIN or EVAL (with GT) ----------------
+        if self.training or has_gt:
+            total = torch.zeros((), device=seg_logits.device)
+            out = {}
+
+            # semantic head loss
+            if self.criteria is not None:
+                seg_loss = self.criteria(seg_logits, input_dict["segment"])
+                out["seg_loss"] = seg_loss
+                total = total + seg_loss
+
+            # decoder loss (list-of-masks vs list-of-targets)
+            if (self.decoder_criteria is not None) and (query_masks is not None):
+                tgt_flat = input_dict["segment"].long()      # (N,)
+                sizes = self._offset_cum2sizes(input_dict["offset"])
+                tgt_list = list(torch.split(tgt_flat, sizes, dim=0))  # List[(ni,)]
+                dec_loss = self.decoder_criteria(query_masks, tgt_list)
+                dec_loss = self.decoder_loss_weight * dec_loss
+                out["decoder_loss"] = dec_loss
+                total = total + dec_loss
+
+            out["loss"] = total
+
+            if self.training:
+                # IMPORTANT: top-level MUST be scalars only
+                return out
+            else:
+                # eval with GT: expose logits for evaluator
+                out["seg_logits"] = seg_logits
+                return out
+
+        # ---------------- TEST (no GT) ----------------
+        return {"seg_logits": seg_logits}
