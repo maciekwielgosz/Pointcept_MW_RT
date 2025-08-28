@@ -56,7 +56,7 @@ model = dict(
 
     # Lightweight query decoder (your module)
     decoder=dict(
-        type="SimpleQueryDecoder",
+        type="SimpleQueryDecoderWithCrossAttention",
         in_channels=64,      # must match backbone_out_channels
         d_model=128,
         num_classes=3,
@@ -159,7 +159,7 @@ data = dict(
             ),
         ],
         test_mode=False,
-        loop=2,
+        loop=8,
     ),
 
     val=dict(

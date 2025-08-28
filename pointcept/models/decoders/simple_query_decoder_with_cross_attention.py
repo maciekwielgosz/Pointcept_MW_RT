@@ -35,7 +35,7 @@ class _CrossAttnBlock(nn.Module):
 
 
 @MODELS.register_module()
-class SimpleQueryDecoderCrossAttn(nn.Module):
+class SimpleQueryDecoderWithCrossAttention(nn.Module):
     """
     Cross-attention query decoder for Pointcept.
 
@@ -67,7 +67,7 @@ class SimpleQueryDecoderCrossAttn(nn.Module):
         use_score_head: bool = False,
         train_score_head: bool = False,
         # optional memory (point feature) encoder:
-        num_mem_layers: int = 1,
+        num_mem_layers: int = 0,
         mem_ffn_mult: int = 4,
     ):
         super().__init__()
