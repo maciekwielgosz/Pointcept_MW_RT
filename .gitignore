@@ -18,3 +18,4 @@ Dockerfile
 *.npy
 *.pth
 datasets/
+output/

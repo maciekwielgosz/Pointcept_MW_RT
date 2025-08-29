@@ -149,7 +149,9 @@ class SimpleQueryDecoderWithCrossAttention(nn.Module):
         q_mask = self.mask_proj(q)               # (K, d)
 
         # per-class mask logits over points: (K, Ni) = (K, d) @ (d, Ni)
-        masks = torch.matmul(q_mask, mem.transpose(0, 1))  # (K, N)
+        qn = torch.nn.functional.normalize(q_mask, dim=1)   # (K,d)
+        mn = torch.nn.functional.normalize(mem, dim=1)      # (N,d)
+        masks = torch.matmul(qn, mn.transpose(0, 1))        # (K,N)
 
         out: Dict[str, torch.Tensor] = {"masks": masks}
 

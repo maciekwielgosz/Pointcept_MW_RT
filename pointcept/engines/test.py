@@ -221,7 +221,60 @@ class SemSegTester(TesterBase):
                     assert "inverse" in data_dict.keys()
                     pred = pred[data_dict["inverse"]]
                     segment = data_dict["origin_segment"]
-                np.save(pred_save_path, pred)
+                # np.save(pred_save_path, pred)
+
+            # ---------- NEW: write TXT(s) regardless of cache ----------
+            Nv = int(segment.size)
+
+            # rebuild voxel-level coords from fragment_list
+            voxel_xyz = np.empty((Nv, 3), dtype=np.float32)
+            filled = np.zeros(Nv, dtype=bool)
+            for i in range(len(fragment_list)):
+                frag_dict = collate_fn(fragment_list[i:i+1])
+                idx_part = frag_dict["index"].cpu().numpy() if isinstance(frag_dict["index"], torch.Tensor) else frag_dict["index"]
+                coord    = frag_dict["coord"].cpu().numpy()  if isinstance(frag_dict["coord"],  torch.Tensor) else frag_dict["coord"]
+                voxel_xyz[idx_part] = coord
+                filled[idx_part] = True
+
+            if not filled.all():
+                logger.warning(f"{data_name}: {np.count_nonzero(~filled)} voxel coords not filled")
+
+            # save voxel-level xyz + label
+            try:
+                np.savetxt(
+                    os.path.join(save_path, f"{data_name}_pred_voxel_xyz.txt"),
+                    np.concatenate([voxel_xyz, pred.reshape(-1, 1)], axis=1),
+                    fmt="%.6f %.6f %.6f %d",
+                )
+                logger.info(f"wrote {data_name}_pred_voxel_xyz.txt")
+            except Exception as e:
+                logger.warning(f"failed to write voxel txt for {data_name}: {e}")
+
+            # optional full-res dump if mapping exists
+            if ("inverse" in data_dict) and ("origin_coord" in data_dict) and ("origin_segment" in data_dict):
+                pred_full = pred[data_dict["inverse"]]
+                origin_coord = data_dict["origin_coord"].cpu().numpy()
+                if origin_coord.shape[0] == pred_full.shape[0]:
+                    try:
+                        np.savetxt(
+                            os.path.join(save_path, f"{data_name}_pred_xyz.txt"),
+                            np.concatenate([origin_coord, pred_full.reshape(-1, 1)], axis=1),
+                            fmt="%.6f %.6f %.6f %d",
+                        )
+                        logger.info(f"wrote {data_name}_pred_xyz.txt")
+                    except Exception as e:
+                        logger.warning(f"failed to write full-res txt for {data_name}: {e}")
+                    # (optional) use full-res for metrics
+                    pred = pred_full
+                    segment = data_dict["origin_segment"]
+                else:
+                    logger.warning(
+                        f"skip full-res txt for {data_name}: shape mismatch "
+                        f"{origin_coord.shape[0]} != {pred_full.shape[0]}"
+                    )
+            # ---------- END NEW ----------
+
+
             if (
                 self.cfg.data.test.type == "ScanNetDataset"
                 or self.cfg.data.test.type == "ScanNet200Dataset"

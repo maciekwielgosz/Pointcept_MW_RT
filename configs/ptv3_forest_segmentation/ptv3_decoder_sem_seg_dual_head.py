@@ -5,7 +5,7 @@ _base_ = ["../_base_/default_runtime.py"]
 # ---------------------------------------------------------------------------- #
 # Misc
 # ---------------------------------------------------------------------------- #
-batch_size = 8              # safer default; raise if memory allows
+batch_size = 16              # safer default; raise if memory allows
 num_worker = 24
 empty_cache = False
 enable_amp = True
@@ -92,7 +92,7 @@ model = dict(
 # Optimizer & Scheduler
 # ---------------------------------------------------------------------------- #
 evaluate = True
-epoch = 20
+epoch = 500
 eval_epoch = 4
 
 optimizer = dict(type="AdamW", lr=0.006, weight_decay=0.05)
@@ -200,7 +200,12 @@ data = dict(
         transform=[
             dict(type="CenterShift", apply_z=True),
             dict(type="LabelShift", offset=-1),
-            dict(type="SphereCrop", point_max=30000, mode="center"),
+            dict(
+                type="CylinderCropSubsampling",
+                radius=20.0,
+                num_points=30000,
+                mode="center",
+            ),
         ],
         test_mode=True,
         test_cfg=dict(
